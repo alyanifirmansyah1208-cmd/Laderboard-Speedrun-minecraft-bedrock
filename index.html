@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dragon Speedrun</title>
+<style>
+body{margin:0;background:#0b1020;color:#f4f7ff;font:16px system-ui}header{text-align:center;padding:25px;color:#f6bd4b}
+main{max-width:900px;margin:auto;padding:12px;display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.card{background:#151d31;border:1px solid #2b3854;border-radius:14px;padding:16px}h2{margin-top:0}
+label{display:block;color:#aab6cc;margin:10px 0 4px}input{width:100%;box-sizing:border-box;padding:11px;background:#0b1222;color:white;border:1px solid #35415c;border-radius:8px}
+button{padding:11px 14px;margin:10px 5px 0 0;border:0;border-radius:8px;background:#f6bd4b;font-weight:bold}
+.secondary{background:#35415c;color:white}.status{white-space:pre-wrap;color:#aab6cc;margin-top:10px}
+table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:8px;border-bottom:1px solid #35415c}.rank{color:#f6bd4b}.wide{grid-column:1/-1}.small{color:#aab6cc;font-size:13px}
+</style></head><body>
+<header><h1>🐉 DRAGON SPEEDRUN</h1><p>Catat kemenangan Ender Dragon • Kumpulkan XP • Naik rank</p></header>
+<main>
+<section class="card"><h2>Akun pemain</h2>
+<label>Username (3–16 karakter)</label><input id="username" maxlength="16" placeholder="Steve123">
+<label>Email</label><input id="email" type="email" placeholder="nama@email.com">
+<label>Password</label><input id="password" type="password" placeholder="Minimal 6 karakter">
+<button id="signup">Daftar</button><button class="secondary" id="login">Login</button><button class="secondary" id="logout" hidden>Logout</button><div id="authStatus" class="status">Isi konfigurasi Supabase di file ini terlebih dahulu.</div></section>
+<section class="card"><h2>🏆 Leaderboard global</h2><table><thead><tr><th>#</th><th>Pemain</th><th>Rank</th><th>XP</th></tr></thead><tbody id="leaderboard"><tr><td colspan="4">Belum dimuat</td></tr></tbody></table><button class="secondary" id="refresh">Muat ulang</button></section>
+<section class="card"><h2>👤 Profil saya</h2><div id="profile" class="small">Login untuk melihat profil.</div></section>
+<section class="card"><h2>⏱️ Kirim hasil speedrun</h2><p class="small">Waktu dimasukkan manual. Hasil berstatus Pending sampai diverifikasi admin.</p>
+<label>Menit</label><input id="minutes" type="number" min="0" max="1440">
+<label>Detik tambahan</label><input id="seconds" type="number" min="0" max="59" value="0">
+<label>Link bukti (opsional)</label><input id="evidence" type="url" placeholder="https://..."><button id="submitRun">Kirim hasil</button><div id="runStatus" class="status">Login terlebih dahulu.</div></section>
+<section class="card wide"><h2>📜 Riwayat pengiriman saya</h2><table><thead><tr><th>Tanggal</th><th>Waktu</th><th>Status</th></tr></thead><tbody id="history"><tr><td colspan="3">Login untuk melihat riwayat.</td></tr></tbody></table></section>
+</main><footer class="small" style="text-align:center;padding:20px">Dragon Speedrun • Hasil Pending belum menambah XP.</footer>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// GANTI dua nilai ini dengan Project URL dan Publishable key milikmu.
+const SUPABASE_URL = "TEMPEL_PROJECT_URL_DI_SINI";https://rlqopqlwlhmrnxsncimt.supabase.co/rest/v1/
+const SUPABASE_PUBLISHABLE_KEY = "TEMPEL_PUBLISHABLE_KEY_DI_SINI";sb_publishable_3kxYJDRvfy-fB7K7zzVNfg_od1gGPsd
+const $=id=>document.getElementById(id);let db=null;
+const configured=!!(window.supabase&&SUPABASE_URL.startsWith("https://")&&SUPABASE_PUBLISHABLE_KEY.startsWith("sb_publishable_"));
+if(configured){db=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);$("authStatus").textContent="Terhubung ke Supabase."}
+function msg(id,t){$(id).textContent=t}
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+async function leaderboard(){if(!db)return;let {data,error}=await db.from("players").select("username,xp,rank").order("xp",{ascending:false}).limit(50);$("leaderboard").innerHTML=error?`<tr><td colspan="4">${esc(error.message)}</td></tr>`:data.length?data.map((p,i)=>`<tr><td>${i+1}</td><td>${esc(p.username)}</td><td class="rank">${esc(p.rank)}</td><td>${p.xp}</td></tr>`).join(""):'<tr><td colspan="4">Belum ada pemain</td></tr>'}
+async function account(){if(!db)return;let {data:{user}}=await db.auth.getUser();$("logout").hidden=!user;if(!user){$("profile").textContent="Login untuk melihat profil.";return}
+let {data:p,error}=await db.from("players").select("username,xp,rank").eq("id",user.id).maybeSingle();$("profile").innerHTML=error?esc(error.message):p?`Username: <b>${esc(p.username)}</b><br>XP: <b>${p.xp}</b><br>Rank: <b class="rank">${esc(p.rank)}</b>`:"Profil belum ditemukan.";
+let {data:r,error:e}=await db.from("runs").select("time_seconds,status,created_at").eq("player_id",user.id).order("created_at",{ascending:false}).limit(20);$("history").innerHTML=e?`<tr><td colspan="3">${esc(e.message)}</td></tr>`:r.length?r.map(x=>`<tr><td>${new Date(x.created_at).toLocaleDateString("id-ID")}</td><td>${Math.floor(x.time_seconds/60)}:${String(x.time_seconds%60).padStart(2,"0")}</td><td>${esc(x.status)}</td></tr>`).join(""):'<tr><td colspan="3">Belum ada pengiriman</td></tr>'}
+$("signup").onclick=async()=>{if(!db)return msg("authStatus","Isi URL dan Publishable key dahulu.");let u=$("username").value.trim(),email=$("email").value.trim(),password=$("password").value;if(!/^[a-zA-Z0-9_]{3,16}$/.test(u))return msg("authStatus","Username harus 3–16 karakter: huruf, angka, garis bawah.");let {data,error}=await db.auth.signUp({email,password,options:{data:{username:u}}});msg("authStatus",error?error.message:(data.session?"Pendaftaran berhasil dan sudah login.":"Pendaftaran berhasil. Cek email untuk konfirmasi, lalu login."));await account()};
+$("login").onclick=async()=>{if(!db)return msg("authStatus","Isi URL dan Publishable key dahulu.");let {error}=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});msg("authStatus",error?error.message:"Login berhasil.");await account()};
+$("logout").onclick=async()=>{await db.auth.signOut();msg("authStatus","Logout berhasil.");await account()};
+$("submitRun").onclick=async()=>{if(!db)return msg("runStatus","Isi URL dan Publishable key dahulu.");let {data:{user}}=await db.auth.getUser();if(!user)return msg("runStatus","Login terlebih dahulu.");let m=Number($("minutes").value),s=Number($("seconds").value),ev=$("evidence").value.trim();if(!Number.isInteger(m)||m<0||m>1440||!Number.isInteger(s)||s<0||s>59||m*60+s<=0)return msg("runStatus","Masukkan waktu yang valid.");if(ev&&!/^https?:\/\//i.test(ev))return msg("runStatus","Link bukti harus diawali http:// atau https://.");let {error}=await db.from("runs").insert({player_id:user.id,time_seconds:m*60+s,status:"pending",xp_earned:0,evidence_url:ev||null});msg("runStatus",error?error.message:"Hasil terkirim dengan status Pending. XP belum ditambahkan.");await account()};
+$("refresh").onclick=leaderboard;if(db){leaderboard();account();db.auth.onAuthStateChange(()=>{account();leaderboard()})}
+</script></body></html>
